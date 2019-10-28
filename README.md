@@ -24,6 +24,23 @@ Paxos算法是莱斯利·兰伯特（英语：Leslie Lamport，LaTeX中的“La�
 
 通常，使用 n=2F+1 个 Processor 可以在 F 个 Processor 同时发生故障时依然保持共识算法的正常运行：换句话说，非故障的 Processor 数量必须大于故障的 Processor 数量。However, using reconfiguration, a protocol may be employed which survives any number of total failures as long as no more than F fail simultaneously[citation needed].question
 
+## 角色
+
+在 Paxos 中，Processor 的行为取决于它的角色：client、acceptor、proposer、learner 和 leader。在典型实现中，同一个 Processor 可以扮演多个角色，这不会影响协议的正确性——合并角色通常能改善延迟并减少消息数量。
+- Client: 客户端向分布式系统发出请求，然后等待响应。例如，对分布式文件服务器中文件的写请求。
+- Acceptor (Voters): The Acceptors act as the fault-tolerant "memory" of the protocol. Acceptors are collected into groups called Quorums. Any message sent to an Acceptor must be sent to a Quorum of Acceptors. Any message received from an Acceptor is ignored unless a copy is received from each Acceptor in a Quorum.question
+- Proposer: 向 Acceptors 提出 Client 的请求，并在冲突发生的时候，起到冲突调节的作用。
+- Learner: 在协议中充当备份的角色。一旦 Client 的请求被 Acceptors 同意了，Learner 将执行请求并将响应发送给 Client。为了提高可用性，可以添加多个 Learner。
+- Leader: Paxos requires a distinguished Proposer (called the leader) to make progress. Many processes may believe they are leaders, but the protocol only guarantees progress if one of them is eventually chosen. If two processes believe they are leaders, they may stall the protocol by continuously proposing conflicting updates. However, the safety properties are still preserved in that case.question
+
+### 法定人数
+
+法定人数通过确保那些存活的 processor 仍保留结果来保证 Paxos 的一致性。法定人数是 Acceptors 的子集，因此任意两个子集（即任意两组法定人数）至少有一个成员是共享的。通常，法定人数是 Acceptors 中的多数派，例如，给定一组 Acceptors {A，B，C，D}，法定人数可以是任意三个 Acceptors: {A，B，C}，{A，C，D}，{A，B，D} ，{B，C，D}。同样，可以将任意权重分配给 Acceptors，此时，法定人数可以定义为权重大于所有 Acceptors 总权重一半的任意子集。
+
+### 提案编号和内容
+
+Each attempt to define an agreed value v is performed with proposals which may or may not be accepted by Acceptors. Each proposal is uniquely numbered for a given Proposer. So, e.g., each proposal may be of the form (n, v), where n is the unique identifier of the proposal and v is the actual proposed value. The value corresponding to a numbered proposal can be computed as part of running the Paxos protocol, but need not be.question
+
 ## 译者注
 
 ### 拜占庭将军问题
