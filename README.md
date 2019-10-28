@@ -56,7 +56,7 @@ Basic Paxos 是 Paxos 协议族中最基本的一种协议。Basic Paxos 的每�
 * 否则（指的是 n 不大于 Acceptor 在之前从任何一个 Proposer 接收到的消息标识号），Acceptor 可以忽略这个提案。在这种情况下，Paxos 不会进行。但是，为了优化起见，发送一个拒绝响应（[Nack](https://en.wikipedia.org/wiki/NAK_(protocol_message))）告诉 Proposer 它将停止尝试与 n 建立共识。
 
 ### 阶段2
-### 阶段2a *Accept*
+#### 阶段2a *Accept*
 如果 Proposer 收到了足够来自法定人数的 Acceptor 的 Promise，它需要给这个提案设定一个值 v。 If any Acceptors had previously accepted any proposal, then they'll have sent their values to the Proposer, who now must set the value of its proposal, v, to the value associated with the highest proposal number reported by the Acceptors, let's call it z.如果没有 Acceptor 接受过大于这个值得提案。那么这个 Proposer 会选择它最开始想要的提议的提案的值。用 x 表示。
 
 Proposer 发送一个带有提案值 v 和提案数字 n 的 *Accept* 消息（n，v）给具有法定人数的 Acceptor（n 和之前发送给 Acceptor 的 *Prepare* 消息中的标识号是相同的）。所以，这个*Accept* 消息又可以表示为 （n，v=z）或者在之前没有 Acceptor 接收值得情况下，（n，v=x） 
