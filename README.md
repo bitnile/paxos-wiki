@@ -77,6 +77,119 @@ Proposer 发送一个带有提案值 v 和提案数字 n 的 *Accept* 消息（n
 ### Paxos 能应用在领导者选举中
 请注意，当 Acceptor 接收了一个请求，他也会承认 Proposer 的领导。因此，Paxos 也能够用来选举一个节点集群的领导者。
 
+
+### Basic Paxos 的图形表示
+下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件 question 的故障。
+
+注意：在首次提出提案时， *Promise*消息 中返回的值为 “null”（因为在这个轮次志气啊你，没有 Acceptor 接受过该值）
+
+#### Basic Paxos 的成功情况
+在下图中，有一个 client，一个 Proposer， 三个 Acceptor（即法定人数为 3）和两个 Learner（由2条垂直线表示）。该图表示第一轮成功的情况（即网络中没有进程失败）。
+
+```
+Client   Proposer      Acceptor     Learner
+   |         |          |  |  |       |  |
+   X-------->|          |  |  |       |  |  Request
+   |         X--------->|->|->|       |  |  Prepare(1)
+   |         |<---------X--X--X       |  |  Promise(1,{Va,Vb,Vc})
+   |         X--------->|->|->|       |  |  Accept!(1,V)
+   |         |<---------X--X--X------>|->|  Accepted(1,V)
+   |<---------------------------------X--X  Response
+   |         |          |  |  |       |  |
+```
+
+question
+
+#### Basic Paxos 的错误情况
+The simplest error cases are the failure of an Acceptor (when a Quorum of Acceptors remains alive) and failure of a redundant Learner. In these cases, the protocol requires no "recovery" (i.e. it still succeeds): no additional rounds or messages are required, as shown below (in the next two diagrams/cases).
+
+#### Acceptor 失败的 Basic Paxos
+在下图中，法定人数中的其中一个 Acceptor 失败，所以法定认识变成了 22，在这种情况下，Basic Paxos 仍然可以成功
+
+```
+Client   Proposer      Acceptor     Learner
+   |         |          |  |  |       |  |
+   X-------->|          |  |  |       |  |  Request
+   |         X--------->|->|->|       |  |  Prepare(1)
+   |         |          |  |  !       |  |  !! FAIL !!
+   |         |<---------X--X          |  |  Promise(1,{Va, Vb, null})
+   |         X--------->|->|          |  |  Accept!(1,V)
+   |         |<---------X--X--------->|->|  Accepted(1,V)
+   |<---------------------------------X--X  Response
+   |         |          |  |          |  |
+```
+
+#### 多个 Learner 失败的 Basic Paxos
+在这种情况下，会有一个（或多个） Learn 失败，但是 Basic Paxos 协议仍然能成功
+```
+Client Proposer         Acceptor     Learner
+   |         |          |  |  |       |  |
+   X-------->|          |  |  |       |  |  Request
+   |         X--------->|->|->|       |  |  Prepare(1)
+   |         |<---------X--X--X       |  |  Promise(1,{Va,Vb,Vc})
+   |         X--------->|->|->|       |  |  Accept!(1,V)
+   |         |<---------X--X--X------>|->|  Accepted(1,V)
+   |         |          |  |  |       |  !  !! FAIL !!
+   |<---------------------------------X     Response
+   |         |          |  |  |       |
+```
+
+#### 一个 Proposer 失败的 Basic Paxos
+In this case, a Proposer fails after proposing a value, but before the agreement is reached. Specifically, it fails in the middle of the Accept message, so only one Acceptor of the Quorum receives the value. Meanwhile, a new Leader (a Proposer) is elected (but this is not shown in detail). Note that there are 2 rounds in this case (rounds proceed vertically, from the top to the bottom).
+
+```
+Client  Proposer        Acceptor     Learner
+   |      |             |  |  |       |  |
+   X----->|             |  |  |       |  |  Request
+   |      X------------>|->|->|       |  |  Prepare(1)
+   |      |<------------X--X--X       |  |  Promise(1,{Va, Vb, Vc})
+   |      |             |  |  |       |  |
+   |      |             |  |  |       |  |  !! Leader fails during broadcast !!
+   |      X------------>|  |  |       |  |  Accept!(1,V)
+   |      !             |  |  |       |  |
+   |         |          |  |  |       |  |  !! NEW LEADER !!
+   |         X--------->|->|->|       |  |  Prepare(2)
+   |         |<---------X--X--X       |  |  Promise(2,{V, null, null})
+   |         X--------->|->|->|       |  |  Accept!(2,V)
+   |         |<---------X--X--X------>|->|  Accepted(2,V)
+   |<---------------------------------X--X  Response
+   |         |          |  |  |       |  |
+```
+
+
+#### 多个 Proposer 冲突的 Basic Paxos
+如果有多个 Proposer 认为自身是 Leader 的时候，这种情况是最复杂的。举个例子，当前的 Leader 可能失败后恢复，但是此时其他的 Proposer 已经选举了新 Leader。而恢复后的 Leader 仍不知道选举了新 leader，而试图开启一个和当前的 Leader 冲突的轮次。在下图中，展示了 4 种未成功的轮次，但其实有可能一直失败下去。
+
+```
+Client   Leader         Acceptor     Learner
+   |      |             |  |  |       |  |
+   X----->|             |  |  |       |  |  Request
+   |      X------------>|->|->|       |  |  Prepare(1)
+   |      |<------------X--X--X       |  |  Promise(1,{null,null,null})
+   |      !             |  |  |       |  |  !! LEADER FAILS
+   |         |          |  |  |       |  |  !! NEW LEADER (knows last number was 1)
+   |         X--------->|->|->|       |  |  Prepare(2)
+   |         |<---------X--X--X       |  |  Promise(2,{null,null,null})
+   |      |  |          |  |  |       |  |  !! OLD LEADER recovers
+   |      |  |          |  |  |       |  |  !! OLD LEADER tries 2, denied
+   |      X------------>|->|->|       |  |  Prepare(2)
+   |      |<------------X--X--X       |  |  Nack(2)
+   |      |  |          |  |  |       |  |  !! OLD LEADER tries 3
+   |      X------------>|->|->|       |  |  Prepare(3)
+   |      |<------------X--X--X       |  |  Promise(3,{null,null,null})
+   |      |  |          |  |  |       |  |  !! NEW LEADER proposes, denied
+   |      |  X--------->|->|->|       |  |  Accept!(2,Va)
+   |      |  |<---------X--X--X       |  |  Nack(3)
+   |      |  |          |  |  |       |  |  !! NEW LEADER tries 4
+   |      |  X--------->|->|->|       |  |  Prepare(4)
+   |      |  |<---------X--X--X       |  |  Promise(4,{null,null,null})
+   |      |  |          |  |  |       |  |  !! OLD LEADER proposes, denied
+   |      X------------>|->|->|       |  |  Accept!(3,Vb)
+   |      |<------------X--X--X       |  |  Nack(4)
+   |      |  |          |  |  |       |  |  ... and so on ...
+```
+
+
 ## 译者注
 
 ### 拜占庭将军问题
