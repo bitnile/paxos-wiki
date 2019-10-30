@@ -71,7 +71,7 @@ Proposer 发送一个带有提案内容 v 和提案编号 n 的 *Accept* 消息�
 
 如果一个 Acceptor 接收了一个来自 Proposer 的 *Accept* 消息（n，v），当且仅当它尚未对提案编号大于 n 的提案作出承诺时（在 Paxos 协议的 阶段1b 中），它才必须接受该提案。
 
-如果 Acceptor 尚未承诺（在 阶段1b 中）仅考虑提案编号大于 n 的提案，则应将（刚收到的  *Accept* 消息）的提案内容 v 注册为（协议的）共识，并发送一个 *Accepted* 消息给 Proposer 和每个 Learner（通常是 Proposer 本身）</br>
+如果 Acceptor 尚未对提案编号大于 n 的天做出承诺时（在 Paxos 协议的 阶段1b 中），则应将（刚收到的  *Accept* 消息）的提案内容 v 注册为（协议的）共识，并发送一个 *Accepted* 消息给 Proposer 和每个 Learner（通常是 Proposer 本身）</br>
 否则，它将忽略这个 *Accept* 消息或请求。
 
 注意，一个 Acceptor 可以接收多个提案。所以可能会发生以下情况：当另一个 Proposer 不知道要确定的新的提案内容时，使用一个更高的提案编号 n 来开始一个新的轮次。在这种情况下，即使 Acceptor 在早先接收了另外一个提案编号，Acceptor 仍然会承诺并且稍后接收新的（提案编号更大的）提案。在某些故障情况下，这些提案甚至可能会有不同的内容。但是 Paxos 协议会保证 Acceptor 最终会在一个值中达成共识。
@@ -88,7 +88,7 @@ Proposer 发送一个带有提案内容 v 和提案编号 n 的 *Accept* 消息�
 
 下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件 question 的故障。
 
-注意：在首次提出提案时， *Promise*消息 中返回的值为 “null”（因为在这个轮次之前，没有 Acceptor 接受过该值）
+注意：在首次提出提案时， *Promise*消息中返回的值为 “null”（因为在这个轮次之前，没有 Acceptor 接受过任意值）
 
 #### Basic Paxos 的成功情况
 
@@ -105,16 +105,15 @@ Client   Proposer      Acceptor     Learner
    |<---------------------------------X--X  Response
    |         |          |  |  |       |  |
 ```
-
-question
+在这里，V 指的是 Va、Vb、Vc 中提案编号最大的提案内容。
 
 #### Basic Paxos 的错误情况
 
-The simplest error cases are the failure of an Acceptor (when a Quorum of Acceptors remains alive) and failure of a redundant Learner. In these cases, the protocol requires no "recovery" (i.e. it still succeeds): no additional rounds or messages are required, as shown below (in the next two diagrams/cases).
+Basic Paxos 最简单的错误场景是一个 Acceptor 崩溃（当法定人数的 Acceptor 仍然存活）和 冗余的 Learner 崩溃。在这些情况下，协议不要求恢复（它仍然是成功的）：不需要额外的轮次或者消息。如下所示：（在接下来两个图表案例中）
 
-#### Acceptor 失败的 Basic Paxos
+#### Acceptor 崩溃的 Basic Paxos
 
-在下图中，法定人数中的其中一个 Acceptor 失败，所以法定认识变成了 22，在这种情况下，Basic Paxos 仍然可以成功
+在下图中，法定人数中的其中一个 Acceptor 崩溃，所以法定人数变成了 2，在这种情况下，Basic Paxos 仍然可以成功。
 
 ```
 Client   Proposer      Acceptor     Learner
@@ -129,9 +128,9 @@ Client   Proposer      Acceptor     Learner
    |         |          |  |          |  |
 ```
 
-#### 多个 Learner 失败的 Basic Paxos
+#### 冗余 Learner 的崩溃 Basic Paxos
 
-在这种情况下，会有一个（或多个） Learn 失败，但是 Basic Paxos 协议仍然能成功
+在这种情况下，冗余的 Learner 中的其中一个崩溃了，但是 Basic Paxos 协议仍然能成功
 ```
 Client Proposer         Acceptor     Learner
    |         |          |  |  |       |  |
@@ -145,9 +144,9 @@ Client Proposer         Acceptor     Learner
    |         |          |  |  |       |
 ```
 
-#### 一个 Proposer 失败的 Basic Paxos
+#### 一个 Proposer 崩溃的 Basic Paxos
 
-In this case, a Proposer fails after proposing a value, but before the agreement is reached. Specifically, it fails in the middle of the Accept message, so only one Acceptor of the Quorum receives the value. Meanwhile, a new Leader (a Proposer) is elected (but this is not shown in detail). Note that there are 2 rounds in this case (rounds proceed vertically, from the top to the bottom).
+在这种情况下，一个 Proposer 发送一个带有内容的消息后，在达成共识之前崩溃了。特殊地，它在发送 *Accept** 消息的过程中崩溃，只有法定人数的一个 Acceptor 收到了提案。此时，有一个新的 Proposer Leader 被选举出来（图中没有说明选举细节）。注意，在这种情况下有两轮（轮次从上往下进行）。
 
 ```
 Client  Proposer        Acceptor     Learner
@@ -170,7 +169,7 @@ Client  Proposer        Acceptor     Learner
 
 #### 多个 Proposer 冲突的 Basic Paxos
 
-如果有多个 Proposer 认为自身是 Leader 的时候，这种情况是最复杂的。举个例子，当前的 Leader 可能失败后恢复，但是此时其他的 Proposer 已经选举了新 Leader。而恢复后的 Leader 仍不知道选举了新 leader，而试图开启一个和当前的 Leader 冲突的轮次。在下图中，展示了 4 种未成功的轮次，但其实有可能一直失败下去。
+如果有多个 Proposer 认为自身是 Leader 的时候，这种情况是最复杂的。举个例子，当前的 Leader 可能崩溃后恢复，但是此时其他的 Proposer 已经选举了新 Leader。而恢复后的 Leader 仍不知道选举了新 leader，而试图开启一个和当前的 Leader 冲突的轮次。在下图中，展示了 4 种未成功的轮次，但其实有可能一直失败下去。
 
 ```
 Client   Leader         Acceptor     Learner
@@ -201,13 +200,14 @@ Client   Leader         Acceptor     Learner
    |      |  |          |  |  |       |  |  ... and so on ...
 ```
 
-## Multi-Paxos
+## Multi Paxos
 
-A typical deployment of Paxos requires a continuous stream of agreed values acting as commands to a distributed state machine. If each command is the result of a single instance of the Basic Paxos protocol, a significant amount of overhead would result.
+Paxos 的典型部署需要连续不断的提案内容的流来充当对分布式状态机的命令。如果每个命令是 Basic Paxos 协议的单个实例的结果，则将导致大量的开销。
 
 如果 Leader 比较稳定，就没必要再进行阶段一了。因此，对于将来具有相同领导者的协议的实例，可以跳过阶段一。
 
-To achieve this, the round number I is included along with each value which is incremented in each round by the same Leader. Multi-Paxos reduces the failure-free message delay (proposal to learning) from 4 delays to 2 delays.
+为了实现这一点，将第一轮连同每个值一起包括在内，每个值在同一轮中由同一 Leader 递增。
+Multi-Paxos 将无故障消息延迟从4个延迟减少到2个延迟。
 
 ### Multi-Paxos 中消息流的图形表示
 
@@ -227,7 +227,7 @@ Client   Proposer      Acceptor     Learner
    |         |          |  |  |       |  |
 ```
 
-where V = last of (Va, Vb, Vc).
+在这里，V 指的是 Va、Vb、Vc 中提案编号最大的提案内容。
 
 #### 可忽略阶段一的 Multi-Paxos
 
@@ -243,7 +243,7 @@ Client   Proposer       Acceptor     Learner
    |         |          |  |  |       |  |
 ```
 
-#### 角色合并的 Multi-Paxos question
+#### 角色合并的 Multi-Paxos
 
 Multi-Paxos 的一个常见部署是将 Proposers、Acceptors 和 Learners 的角色合并为 Servers。所以，最后只有 Clients 和 Servers。下图代表 Basic-Paxos 协议的第一个“实例”，即当 Proposer、Acceptor 和 Learner 的角色合并为单个角色（称为 Server）时。
 
