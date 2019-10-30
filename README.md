@@ -57,7 +57,7 @@ Basic Paxos 是 Paxos 协议族中最基本的一种协议。Basic Paxos 的每�
 
 ### 阶段2
 #### 阶段2a *Accept*
-如果 Proposer 收到了足够来自法定人数的 Acceptor 的 Promise，它需要给这个提案设定一个值 v。 If any Acceptors had previously accepted any proposal, then they'll have sent their values to the Proposer, who now must set the value of its proposal, v, to the value associated with the highest proposal number reported by the Acceptors, let's call it z.如果没有 Acceptor 接受过大于这个值得提案。那么这个 Proposer 会选择它最开始想要的提议的提案的值。用 x 表示。
+如果 Proposer 收到了足够来自法定人数的 Acceptor 的 Promise，它需要给这个提案设定一个值 v。 ~~If any Acceptors had previously accepted any proposal, then they'll have sent their values to the Proposer, who now must set the value of its proposal, v, to the value associated with the highest proposal number reported by the Acceptors, let's call it z.~~ 如果任何 Acceptors 以前接受过任何提案，那么它们会将提案内容发送给 Proposer，Proposer 现在必须将其提案的内容 v 设置为与 Acceptors 报告的最高的提案编号关联的内容 z。~~如果没有 Acceptor 接受过大于这个值得提案。那么这个 Proposer 会选择它最开始想要的提议的提案的值。用 x 表示。~~ 如果到目前为止没有任何一个 Acceptor 接受了提案，那么 Proposer 可以选择它最初想要的提案 x。
 
 Proposer 发送一个带有提案值 v 和提案数字 n 的 *Accept* 消息（n，v）给具有法定人数的 Acceptor（n 和之前发送给 Acceptor 的 *Prepare* 消息中的标识号是相同的）。所以，这个*Accept* 消息又可以表示为 （n，v=z）或者在之前没有 Acceptor 接收值得情况下，（n，v=x） 
 
