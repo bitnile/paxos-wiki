@@ -1,6 +1,42 @@
 # paxos-wiki
 
-Paxos 算法是莱斯利·兰伯特（英语：Leslie Lamport，LaTeX中的“La”）于1990年提出的一种基于消息传递且具有高度容错特性的一致性算法。本文是对维基百科上[Paxos算法文献](https://en.wikipedia.org/wiki/Paxos_(computer_science))的翻译。
+Paxos算法是莱斯利·兰伯特（英语：Leslie Lamport，LaTeX中的“La”）于1990年提出的一种基于消息传递且具有高度容错特性的一致性算法。本文是对维基百科上[Paxos算法文献](https://en.wikipedia.org/wiki/Paxos_(computer_science))的翻译。
+
+# 目录
+
+* [1 假设条件](#假设条件)</br>
+   * [1.1 Processors](#Processors)</br>
+   * [1.2 Network](#Network)</br>
+   * [1.3 Processor的数量](#Processor的数量)</br>
+* [2 角色](#角色)</br>
+   * [2.1 法定人数](#法定人数)</br>
+   * [2.2 提案编号和内容](#提案编号和内容)</br>
+* [3 Basic Paxos](#Basic-Paxos)</br>
+   * [3.1 阶段1](#阶段1)</br>
+      * [3.1.1 阶段1a：*Prepare*](#阶段1a：*Prepare*)</br>
+      * [3.1.2 阶段1b：*Promise*](#阶段1b：*Promise*)</br>
+   * [3.2 阶段2](#阶段2)</br>
+      * [3.2.1 阶段2a：*Accept*](#阶段2a：*Accept*)</br>
+      * [3.2.2 阶段2b：*Accepted*](#阶段2b：*Accepted*)</br>
+   * [3.3 轮次失败的情况](#轮次失败的情况)</br>
+   * [3.4 Paxos 能应用在 Leader 选举中](#Paxos-能应用在-Leader-选举中)</br>
+   * [3.5 Basic Paxos 的图形表示](#basic-paxos-的图形表示)</br>
+      * [3.5.1 Basic Paxos 的成功情况](#basic-paxos-的成功情况)</br>
+      * [3.5.2 Basic Paxos 的错误情况](#basic-paxos-的错误情况)</br>
+      * [3.5.3 Acceptor 崩溃的 Basic Paxos](#acceptor-崩溃的-basic-paxos)</br>
+      * [3.5.4 冗余 Learner 的崩溃 Basic Paxos](#冗余-learner-的崩溃-basic-paxos)</br>
+      * [3.5.5 一个 Proposer 崩溃的 Basic Paxos](#一个-proposer-崩溃的-basic-paxos)</br>
+      * [3.5.6 多个 Proposer 冲突的 Basic Paxos](#多个-proposer-冲突的-basic-paxos)</br>
+* [4 Multi-Paxos](#multi-paxos)</br>
+   * [4.1 Multi-Paxos 中消息流的图形表示](#multi-paxos-中消息流的图形表示)</br>
+      * [4.1.1 正常情况下的 Multi-Paxos](#正常情况下的-multi-paxos)</br>
+      * [4.1.2 可忽略阶段一的 Multi-Paxos](#可忽略阶段一的-multi-paxos)</br>
+      * [4.1.3 角色合并的 Multi-Paxos](#角色合并的-multi-paxos)</br>
+      * [4.1.4 当角色合并且 Leader 稳定时的 Multi-Paxos](#当角色合并且-leader-稳定时的-multi-paxos)</br>
+* [5 译者注](#译者注)</br>
+   * [5.1 拜占庭将军问题](#拜占庭将军问题)</br>
+
+
 
 ## 假设条件
 
@@ -59,7 +95,7 @@ Basic Paxos 是 Paxos 协议族中最基本的一种协议。Basic Paxos 的每�
 * 否则（指的是 n 不大于 Acceptor 在之前从任何一个 Proposer 接收到的提案编号），Acceptor 可以忽略这个提案。在这种情况下，Paxos 不会进行。但是，为了优化起见，它会发送一个拒绝响应（[Nack](https://en.wikipedia.org/wiki/NAK_(protocol_message))）告诉 Proposer 它将不会与 n 达成共识。
 
 ### 阶段2
-#### 阶段2a *Accept*
+#### 阶段2a：*Accept*
 
 如果 Proposer 收到了来自法定人数的 Acceptor 的 *Promise*消息，它需要给这个提案设定一个值 v。 如果任何 Acceptor 以前接受过任何提案，那么它们会将提案内容发送给 Proposer，Proposer 现在必须将其提案的内容 v 设置为 Acceptor 报告的最高的提案编号关联的内容 z。 如果到目前为止没有任何一个 Acceptor 接受过提案，那么 Proposer 可以选择它最初想要的提案内容 x。
 
@@ -67,7 +103,7 @@ Proposer 发送一个带有提案内容 v 和提案编号 n 的 *Accept* 消息�
 
 这个 *Accept* 消息应该被翻译为 “请求”，表示为“请接受该提案！”。
 
-#### 阶段2b *Accepted*
+#### 阶段2b：*Accepted*
 
 如果一个 Acceptor 接收了一个来自 Proposer 的 *Accept* 消息（n，v），当且仅当它尚未对提案编号大于 n 的提案作出承诺时（在 Paxos 协议的 阶段1b 中），它才必须接受该提案。
 
@@ -86,7 +122,7 @@ Proposer 发送一个带有提案内容 v 和提案编号 n 的 *Accept* 消息�
 
 ### Basic Paxos 的图形表示
 
-下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件的故障。
+下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件 question 的故障。
 
 注意：在首次提出提案时， *Promise*消息中返回的值为 “null”（因为在这个轮次之前，没有 Acceptor 接受过任意值）
 
@@ -200,7 +236,7 @@ Client   Leader         Acceptor     Learner
    |      |  |          |  |  |       |  |  ... and so on ...
 ```
 
-## Multi Paxos
+## Multi-Paxos
 
 Paxos 的典型部署需要连续不断的提案内容的流来充当对分布式状态机的命令。如果每个命令是 Basic Paxos 协议的单个实例的结果，则将导致大量的开销。
 
@@ -213,7 +249,7 @@ Multi-Paxos 将无故障消息延迟从4个延迟减少到2个延迟。
 
 #### 正常情况下的 Multi-Paxos
 
-在下图中，只显示了 Basic-Paxos 协议的一个实例，其中有一个初始领导者（一个提议者）。注意，Multi-Paxos 由 Basic-Paxos 协议的几个实例组成。
+在下图中，只显示了 Basic-Paxos 协议的一个实例，其中有一个初始领导者（一个提议者）。注意，Multi-Paxos 由 Basic-Paxos 协议的几个实例组成。question
 
 ```
 Client   Proposer      Acceptor     Learner
