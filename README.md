@@ -10,28 +10,28 @@ Paxos算法是莱斯利·兰伯特（英语：Leslie Lamport，LaTeX中的“La�
 
 - Processors 以任意速度运行。
 - Processors 可能会遇到故障。
-- 具有稳定存储的 Processors 在失败后可以重新加入协议（遵循崩溃-恢复故障模型）。question
-- 不会发生拜占庭式故障。question
+- 具有稳定存储的 Processors 在失败后可以重新加入协议（遵循崩溃-恢复故障模型）。
+- 不会发生拜占庭将军问题。
 
 ### Network
 
 - 每个 Processor 可以将消息发送到其它任何 Processor。
 - 消息是异步发送的，可能要花很长时间才能发出。
 - 消息可能会丢失、乱序或重复。
-- 消息在发送过程中没有损坏（即没发生拜占庭式故障）。
+- 消息在发送过程中没有损坏（即没发生拜占庭式故障）。 
 
 ### Processor的数量
 
-通常，使用 n=2F+1 个 Processor 可以在 F 个 Processor 同时发生故障时依然保持共识算法的正常运行：换句话说，非故障的 Processor 数量必须大于故障的 Processor 数量。However, using reconfiguration, a protocol may be employed which survives any number of total failures as long as no more than F fail simultaneously[citation needed].question
+通常，使用 n=2F+1 个 Processor 可以在 F 个 Processor 同时发生故障时依然保持共识算法的正常运行：换句话说，非故障的 Processor 数量必须大于故障的 Processor 数量。然而，采用重新配置，可以使用一个协议，允许不超过 F 的任意数量的同时故障。
 
 ## 角色
 
 在 Paxos 中，Processor 的行为取决于它的角色：client、acceptor、proposer、learner 和 leader。在典型实现中，同一个 Processor 可以扮演多个角色，这不会影响协议的正确性——合并角色通常能改善延迟并减少消息数量。
 - Client: 客户端向分布式系统发出请求，然后等待响应。例如，对分布式文件服务器中文件的写请求。
-- Acceptor (Voters): The Acceptors act as the fault-tolerant "memory" of the protocol. Acceptors are collected into groups called Quorums. Any message sent to an Acceptor must be sent to a Quorum of Acceptors. Any message received from an Acceptor is ignored unless a copy is received from each Acceptor in a Quorum.question
+- Acceptor (Voters): Acceptor 扮演一个协议中容错存储的角色，法定人数由多个 Acceptor 组成，任何一个消息都必须发送给法定人数。如果法定人数中的其他 Acceptor 没能收到消息副本，那么这条消息将被忽略。
 - Proposer: 向 Acceptors 提出 Client 的请求，并在冲突发生的时候，起到冲突调节的作用。
 - Learner: 在协议中充当备份的角色。一旦 Client 的请求被 Acceptors 同意了，Learner 将执行请求并将响应发送给 Client。为了提高可用性，可以添加多个 Learner。
-- Leader: Paxos requires a distinguished Proposer (called the leader) to make progress. Many processes may believe they are leaders, but the protocol only guarantees progress if one of them is eventually chosen. If two processes believe they are leaders, they may stall the protocol by continuously proposing conflicting updates. However, the safety properties are still preserved in that case.question
+- Leader: Paxos 需要一个特殊的 Proposer （称为 Leader），Proposer 们认为自身就是 Leader，但是只有在这些 Proposer 中最终选出一个 Leader 时，协议才能正常运行。如果两个 Proposer 认为他们自身是 Leader，那么他们会通过不断提出彼此间冲突的更新，致使协议拖延。但是在这种情况下，安全性仍能得到保证。
 
 ### 法定人数
 
@@ -39,51 +39,59 @@ Paxos算法是莱斯利·兰伯特（英语：Leslie Lamport，LaTeX中的“La�
 
 ### 提案编号和内容
 
-Each attempt to define an agreed value v is performed with proposals which may or may not be accepted by Acceptors. Each proposal is uniquely numbered for a given Proposer. So, e.g., each proposal may be of the form (n, v), where n is the unique identifier of the proposal and v is the actual proposed value. The value corresponding to a numbered proposal can be computed as part of running the Paxos protocol, but need not be.question
+Acceptor 可能接受或者不接受收到的每一个带有 提案内容v 的提案。Proposer 提出的每个提案都有一个唯一编号。例如，每一个提案都可以 （n，v） 表示，其中 n 是提案的唯一编号，v 是提案内容。在运行 Paxos 协议时，某个提案编号对应的提案内容可以参与运算，但这是不必要的。
 
 ## Basic Paxos
-Basic Paxos 是 Paxos 协议族中最基本的一种协议。Basic Paxos 的每一个实例（或 “操作”）都决定了一个输出值。这个协议分几个轮次进行。一个成功的轮次有两个阶段：阶段1（分为 a 和 b 两个部分）和阶段2（分为 a 和 b 两个部分）。参见下面对各阶段的描述。我们假设一个异步模型，一个 Processor 可能在其中一个阶段而另一个 Processor 可能在另一个阶段。
+
+Basic Paxos 是 Paxos 协议族中最基本的一种协议。Basic Paxos 的每一个实例（或 “操作”）都决定了一个输出值。这个协议会进行多轮。一个成功的轮次有两个阶段：阶段1（分为 a 和 b 两个部分）和阶段2（分为 a 和 b 两个部分）。参见下面对各阶段的描述。我们假设一个异步模型，一个 processor 可能在其中一个阶段而另一个 processor 可能在另一个阶段。
 
 ### 阶段1
 #### 阶段1a：*Prepare*
-一个 Proposer 创建了一条消息，我们把这条消息称 “Prepare” 消息，并确认一个数 n，注意，n 不是要提议的值，and maybe agreed on question，而只是一个数字，它由 Proposer 唯一标识此初始消息（发送给 Acceptors）。而 n 必须比这个 Proposer 在之前创建的任何 *Prepare* 消息的标识号都要大。接着，它发送这个带有 n 的 *Prepare* 消息给 [Acceptors](#角色) 的 [法定人数](#法定人数)。注意，*Prepare* 消息只包含了 数字 n （也就是说，它没有包含提案的值，提案的值通常用 v 来表示）。Proposer 决定哪些 Acceptor 在法定人数中。如果无法与 Acceptors 中的多数派进行通信，则 Proposer 不会进行 Paxos。
+
+一个 Proposer 创建了一条消息，我们把这条消息称 *Prepare* 消息，并确认一个数 n，注意，n 不是提案内容，而只是一个数字，它由 Proposer 唯一标识此初始消息（发送给 Acceptors）。而 n 必须比这个 Proposer 在之前创建的任何 *Prepare* 消息的编号都要大。接着，它发送这个带有 n 的 *Prepare* 消息给 [Acceptors](#角色) 的 [法定人数](#法定人数)。注意，*Prepare* 消息只包含了数字 n （也就是说，它没有包含提案的内容，提案的内容通常用 v 来表示）。Proposer 决定哪些 Acceptor 在法定人数中。如果无法与 Acceptors 中的多数派进行通信，则 Paxos 就不会进行下去。
 
 #### 阶段1b：*Promise*
-任何一个 Acceptor 都在等待接收来自任意一个 Proposer 的 *Prepare* 消息，Acceptor 必须查看刚刚收到的 *Prepare* 消息中的确认数字 n。这里有两种情况：
 
-* 如果 n 大于 Acceptor 在之前从任何一个 Proposer 接收到的消息标识号，则 Acceptor 必须向 Proposer 返回一条消息，我们称这个消息为 “Promise”，用来忽略将来所有标识号小于 n 的提案。如果 Acceptor 在过去的某个时候接受了提案，那么他必须在对 Proposer 的回复中包含先前的提案标识号 m 和相应的接收值 w。
+任何一个 Acceptor 都在等待接收来自任意一个 Proposer 的 *Prepare* 消息，Acceptor 必须查看刚刚收到的 *Prepare* 消息中的提案编号 n。这里有两种情况：
 
-* 否则（指的是 n 不大于 Acceptor 在之前从任何一个 Proposer 接收到的消息标识号），Acceptor 可以忽略这个提案。在这种情况下，Paxos 不会进行。但是，为了优化起见，发送一个拒绝响应（[Nack](https://en.wikipedia.org/wiki/NAK_(protocol_message))）告诉 Proposer 它将停止尝试与 n 建立共识。
+* 如果 n 大于 Acceptor 在之前从任何一个 Proposer 接收到的提案编号，则 Acceptor 必须向 Proposer 返回一条消息，我们称这个消息为 *Promise* 消息，用来忽略将来所有编号小于 n 的提案。如果 Acceptor 在过去的某个时候接受过提案，那么它必须在对 Proposer 的回复中包含先前的提案编号 m 和相应的提案内容 w。
+
+* 否则（指的是 n 不大于 Acceptor 在之前从任何一个 Proposer 接收到的提案编号），Acceptor 可以忽略这个提案。在这种情况下，Paxos 不会进行。但是，为了优化起见，它会发送一个拒绝响应（[Nack](https://en.wikipedia.org/wiki/NAK_(protocol_message))）告诉 Proposer 它将不会与 n 达成共识。
 
 ### 阶段2
 #### 阶段2a *Accept*
-如果 Proposer 收到了足够来自法定人数的 Acceptor 的 Promise，它需要给这个提案设定一个值 v。 ~~If any Acceptors had previously accepted any proposal, then they'll have sent their values to the Proposer, who now must set the value of its proposal, v, to the value associated with the highest proposal number reported by the Acceptors, let's call it z.~~ 如果任何 Acceptors 以前接受过任何提案，那么它们会将提案内容发送给 Proposer，Proposer 现在必须将其提案的内容 v 设置为与 Acceptors 报告的最高的提案编号关联的内容 z。~~如果没有 Acceptor 接受过大于这个值得提案。那么这个 Proposer 会选择它最开始想要的提议的提案的值。用 x 表示。~~ 如果到目前为止没有任何一个 Acceptor 接受了提案，那么 Proposer 可以选择它最初想要的提案 x。
 
-Proposer 发送一个带有提案值 v 和提案数字 n 的 *Accept* 消息（n，v）给具有法定人数的 Acceptor（n 和之前发送给 Acceptor 的 *Prepare* 消息中的标识号是相同的）。所以，这个*Accept* 消息又可以表示为 （n，v=z）或者在之前没有 Acceptor 接收值得情况下，（n，v=x） 
+如果 Proposer 收到了来自法定人数的 Acceptor 的 *Promise*消息，它需要给这个提案设定一个值 v。 如果任何 Acceptor 以前接受过任何提案，那么它们会将提案内容发送给 Proposer，Proposer 现在必须将其提案的内容 v 设置为 Acceptor 报告的最高的提案编号关联的内容 z。 如果到目前为止没有任何一个 Acceptor 接受过提案，那么 Proposer 可以选择它最初想要的提案内容 x。
 
-这个 *Accept* 消息应该被翻译为 “请求”，表示为“请接受该提议！”
+Proposer 发送一个带有提案内容 v 和提案编号 n 的 *Accept* 消息（n，v）给具有法定人数的 Acceptor（n 和之前发送给 Acceptor 的 *Prepare* 消息中的提案编号是相同的）。所以，这个 *Accept* 消息又可以表示为 （n，v=z），在之前没有 Acceptor 接收值的情况下，（n，v=x）。
+
+这个 *Accept* 消息应该被翻译为 “请求”，表示为“请接受该提案！”。
 
 #### 阶段2b *Accepted*
-如果一个 Acceptor 接收了一个来自 Proposer 的 *Accept* 消息 （n，v），当且仅当它尚未承诺（在Paxos协议的 阶段1b 中）仅考虑标识号大于 n 的提议时，它才必须接受它。
 
-如果 Acceptor 尚未承诺（在 阶段1b 中）仅考虑标识号大于 n 的提案，则应将（刚收到的  *Accept* 消息）的值 v 注册为（协议的）接收值，并发送一个 *Accepted* 消息给 Proposer 和每个 Learner（通常是 Proposer 本身）</br>
-否则，它将忽略这个 *Accept* 消息或请求
+如果一个 Acceptor 接收了一个来自 Proposer 的 *Accept* 消息（n，v），当且仅当它尚未对提案编号大于 n 的提案作出承诺时（在 Paxos 协议的 阶段1b 中），它才必须接受该提案。
 
-注意，一个 Acceptor 可以接收多个提案。所以可能会发生以下情况：当另一个 Proposer 不知道要确定的新值时，使用一个更高的标识号 n 来开始一个新的轮次。在这种情况下，即使 Acceptor 在早先接收了另外一个标识号，接受者仍然会承诺并且稍后接收新的（标识号更大的）提案。在某些故障情况下，这些提案甚至可能会有不同的值。但是 Paxos 协议会保证 Acceptor 最终会在一个值中达成共识。
+如果 Acceptor 尚未承诺（在 阶段1b 中）仅考虑提案编号大于 n 的提案，则应将（刚收到的  *Accept* 消息）的提案内容 v 注册为（协议的）共识，并发送一个 *Accepted* 消息给 Proposer 和每个 Learner（通常是 Proposer 本身）</br>
+否则，它将忽略这个 *Accept* 消息或请求。
+
+注意，一个 Acceptor 可以接收多个提案。所以可能会发生以下情况：当另一个 Proposer 不知道要确定的新的提案内容时，使用一个更高的提案编号 n 来开始一个新的轮次。在这种情况下，即使 Acceptor 在早先接收了另外一个提案编号，Acceptor 仍然会承诺并且稍后接收新的（提案编号更大的）提案。在某些故障情况下，这些提案甚至可能会有不同的内容。但是 Paxos 协议会保证 Acceptor 最终会在一个值中达成共识。
 
 ### 轮次失败的情况
-当多个 Proposer 发送冲突的 *Prepare* 消息，或者 Proposer 未能接收到法定人数的承诺或接收回复，该轮次会失败。在这些情况下，会开始另一个带有更高的提案标识号的轮次。
 
-### Paxos 能应用在领导者选举中
-请注意，当 Acceptor 接收了一个请求，他也会承认 Proposer 的领导。因此，Paxos 也能够用来选举一个节点集群的领导者。
+当多个 Proposer 发送冲突的 *Prepare* 消息，或者 Proposer 未能接收到法定人数的承诺或接收回复，该轮次会失败。在这些情况下，会开始另一个带有更高的提案编号的轮次。
 
+### Paxos 能应用在 Leader 选举中
+
+请注意，当 Acceptor 接收了一个请求，他也会承认 Proposer 的领导。因此，Paxos 也能够用来选举一个节点集群的 Leader。
 
 ### Basic Paxos 的图形表示
+
 下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件 question 的故障。
 
 注意：在首次提出提案时， *Promise*消息 中返回的值为 “null”（因为在这个轮次之前，没有 Acceptor 接受过该值）
 
 #### Basic Paxos 的成功情况
+
 在下图中，有一个 client，一个 Proposer， 三个 Acceptor（即法定人数为 3）和两个 Learner（由2条垂直线表示）。该图表示第一轮成功的情况（即网络中没有进程失败）。
 
 ```
@@ -101,9 +109,11 @@ Client   Proposer      Acceptor     Learner
 question
 
 #### Basic Paxos 的错误情况
+
 The simplest error cases are the failure of an Acceptor (when a Quorum of Acceptors remains alive) and failure of a redundant Learner. In these cases, the protocol requires no "recovery" (i.e. it still succeeds): no additional rounds or messages are required, as shown below (in the next two diagrams/cases).
 
 #### Acceptor 失败的 Basic Paxos
+
 在下图中，法定人数中的其中一个 Acceptor 失败，所以法定认识变成了 22，在这种情况下，Basic Paxos 仍然可以成功
 
 ```
@@ -120,6 +130,7 @@ Client   Proposer      Acceptor     Learner
 ```
 
 #### 多个 Learner 失败的 Basic Paxos
+
 在这种情况下，会有一个（或多个） Learn 失败，但是 Basic Paxos 协议仍然能成功
 ```
 Client Proposer         Acceptor     Learner
@@ -135,6 +146,7 @@ Client Proposer         Acceptor     Learner
 ```
 
 #### 一个 Proposer 失败的 Basic Paxos
+
 In this case, a Proposer fails after proposing a value, but before the agreement is reached. Specifically, it fails in the middle of the Accept message, so only one Acceptor of the Quorum receives the value. Meanwhile, a new Leader (a Proposer) is elected (but this is not shown in detail). Note that there are 2 rounds in this case (rounds proceed vertically, from the top to the bottom).
 
 ```
@@ -157,6 +169,7 @@ Client  Proposer        Acceptor     Learner
 ```
 
 #### 多个 Proposer 冲突的 Basic Paxos
+
 如果有多个 Proposer 认为自身是 Leader 的时候，这种情况是最复杂的。举个例子，当前的 Leader 可能失败后恢复，但是此时其他的 Proposer 已经选举了新 Leader。而恢复后的 Leader 仍不知道选举了新 leader，而试图开启一个和当前的 Leader 冲突的轮次。在下图中，展示了 4 种未成功的轮次，但其实有可能一直失败下去。
 
 ```
@@ -188,7 +201,7 @@ Client   Leader         Acceptor     Learner
    |      |  |          |  |  |       |  |  ... and so on ...
 ```
 
- ## Multi-Paxos
+## Multi-Paxos
 
 A typical deployment of Paxos requires a continuous stream of agreed values acting as commands to a distributed state machine. If each command is the result of a single instance of the Basic Paxos protocol, a significant amount of overhead would result.
 
