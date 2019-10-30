@@ -1,6 +1,6 @@
 # paxos-wiki
 
-Paxos算法是莱斯利·兰伯特（英语：Leslie Lamport，LaTeX中的“La”）于1990年提出的一种基于消息传递且具有高度容错特性的一致性算法。本文是对维基百科上[Paxos算法文献](https://en.wikipedia.org/wiki/Paxos_(computer_science))的翻译。
+Paxos 算法是莱斯利·兰伯特（英语：Leslie Lamport，LaTeX中的“La”）于1990年提出的一种基于消息传递且具有高度容错特性的一致性算法。本文是对维基百科上[Paxos算法文献](https://en.wikipedia.org/wiki/Paxos_(computer_science))的翻译。
 
 ## 假设条件
 
@@ -86,7 +86,7 @@ Proposer 发送一个带有提案内容 v 和提案编号 n 的 *Accept* 消息�
 
 ### Basic Paxos 的图形表示
 
-下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件 question 的故障。
+下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件的故障。
 
 注意：在首次提出提案时， *Promise*消息中返回的值为 “null”（因为在这个轮次之前，没有 Acceptor 接受过任意值）
 
@@ -213,7 +213,7 @@ Multi-Paxos 将无故障消息延迟从4个延迟减少到2个延迟。
 
 #### 正常情况下的 Multi-Paxos
 
-在下图中，只显示了 Basic-Paxos 协议的一个实例，其中有一个初始领导者（一个提议者）。注意，Multi-Paxos 由 Basic-Paxos 协议的几个实例组成。question
+在下图中，只显示了 Basic-Paxos 协议的一个实例，其中有一个初始领导者（一个提议者）。注意，Multi-Paxos 由 Basic-Paxos 协议的几个实例组成。
 
 ```
 Client   Proposer      Acceptor     Learner
