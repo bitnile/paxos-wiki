@@ -81,7 +81,7 @@ Proposer 发送一个带有提案值 v 和提案数字 n 的 *Accept* 消息（n
 ### Basic Paxos 的图形表示
 下面的流程图表示 Basic Paxos 协议应用的几种情况。这几种情况会说明 Basic Paxos 协议如何应对分布式系统中的一些组件 question 的故障。
 
-注意：在首次提出提案时， *Promise*消息 中返回的值为 “null”（因为在这个轮次志气啊你，没有 Acceptor 接受过该值）
+注意：在首次提出提案时， *Promise*消息 中返回的值为 “null”（因为在这个轮次之前，没有 Acceptor 接受过该值）
 
 #### Basic Paxos 的成功情况
 在下图中，有一个 client，一个 Proposer， 三个 Acceptor（即法定人数为 3）和两个 Learner（由2条垂直线表示）。该图表示第一轮成功的情况（即网络中没有进程失败）。
