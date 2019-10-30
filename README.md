@@ -156,7 +156,6 @@ Client  Proposer        Acceptor     Learner
    |         |          |  |  |       |  |
 ```
 
-
 #### 多个 Proposer 冲突的 Basic Paxos
 如果有多个 Proposer 认为自身是 Leader 的时候，这种情况是最复杂的。举个例子，当前的 Leader 可能失败后恢复，但是此时其他的 Proposer 已经选举了新 Leader。而恢复后的 Leader 仍不知道选举了新 leader，而试图开启一个和当前的 Leader 冲突的轮次。在下图中，展示了 4 种未成功的轮次，但其实有可能一直失败下去。
 
@@ -189,6 +188,76 @@ Client   Leader         Acceptor     Learner
    |      |  |          |  |  |       |  |  ... and so on ...
 ```
 
+ ## Multi-Paxos
+
+A typical deployment of Paxos requires a continuous stream of agreed values acting as commands to a distributed state machine. If each command is the result of a single instance of the Basic Paxos protocol, a significant amount of overhead would result.
+
+如果 Leader 比较稳定，就没必要再进行阶段一了。因此，对于将来具有相同领导者的协议的实例，可以跳过阶段一。
+
+To achieve this, the round number I is included along with each value which is incremented in each round by the same Leader. Multi-Paxos reduces the failure-free message delay (proposal to learning) from 4 delays to 2 delays.
+
+### Multi-Paxos 中消息流的图形表示
+
+#### 正常情况下的 Multi-Paxos
+
+在下图中，只显示了 Basic-Paxos 协议的一个实例，其中有一个初始领导者（一个提议者）。注意，Multi-Paxos 由 Basic-Paxos 协议的几个实例组成。question
+
+```
+Client   Proposer      Acceptor     Learner
+   |         |          |  |  |       |  | --- First Request ---
+   X-------->|          |  |  |       |  |  Request
+   |         X--------->|->|->|       |  |  Prepare(N)
+   |         |<---------X--X--X       |  |  Promise(N,I,{Va,Vb,Vc})
+   |         X--------->|->|->|       |  |  Accept!(N,I,V)
+   |         |<---------X--X--X------>|->|  Accepted(N,I,V)
+   |<---------------------------------X--X  Response
+   |         |          |  |  |       |  |
+```
+
+where V = last of (Va, Vb, Vc).
+
+#### 可忽略阶段一的 Multi-Paxos
+
+在这种情况下，Basic-Paxos 协议的子序列实例（由I+1表示）使用相同的领导者，所以包含了 Prepare 和 Promise 子阶段的阶段一将被忽略。注意，Leader 应当是稳定的，即不应崩溃或更换。
+
+```
+Client   Proposer       Acceptor     Learner
+   |         |          |  |  |       |  |  --- Following Requests ---
+   X-------->|          |  |  |       |  |  Request
+   |         X--------->|->|->|       |  |  Accept!(N,I+1,W)
+   |         |<---------X--X--X------>|->|  Accepted(N,I+1,W)
+   |<---------------------------------X--X  Response
+   |         |          |  |  |       |  |
+```
+
+#### 角色合并的 Multi-Paxos question
+
+Multi-Paxos 的一个常见部署是将 Proposers、Acceptors 和 Learners 的角色合并为 Servers。所以，最后只有 Clients 和 Servers。下图代表 Basic-Paxos 协议的第一个“实例”，即当 Proposer、Acceptor 和 Learner 的角色合并为单个角色（称为 Server）时。
+
+```
+Client      Servers
+   |         |  |  | --- First Request ---
+   X-------->|  |  |  Request
+   |         X->|->|  Prepare(N)
+   |         |<-X--X  Promise(N, I, {Va, Vb})
+   |         X->|->|  Accept!(N, I, Vn)
+   |         X<>X<>X  Accepted(N, I)
+   |<--------X  |  |  Response
+   |         |  |  |
+```
+
+#### 当角色合并且 Leader 稳定时的 Multi-Paxos
+
+如果 Leader 相同，则可以跳过阶段一。
+
+```
+Client      Servers
+   X-------->|  |  |  Request
+   |         X->|->|  Accept!(N,I+1,W)
+   |         X<>X<>X  Accepted(N,I+1)
+   |<--------X  |  |  Response
+   |         |  |  |
+```
 
 ## 译者注
 
